@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="MeterHub.Collector/MeterHub.Collector.csproj" />
+  <Project Path="MeterHub.Core/MeterHub.Core.csproj" />
+  <Project Path="MeterHub.Data/MeterHub.Data.csproj" />
+  <Project Path="MeterHub.Simulator/MeterHub.Simulator.csproj" />
+</Solution>
