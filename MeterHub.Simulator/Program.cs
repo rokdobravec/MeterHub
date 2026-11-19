@@ -2,6 +2,7 @@
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
+using System.Buffers.Binary;
 
 
 var meter1 = new MeterHub.Core.Meter("ISK-001");
@@ -99,28 +100,58 @@ while (true)
     using TcpClient client = await listener.AcceptTcpClientAsync();
     NetworkStream stream = client.GetStream();
 
-    double value = Random.Shared.NextDouble() * 10; // random 0-10 number
-    string text = $"ISK-001;1-0:1.8.0;{DateTime.Now:s};{value:f2}";
+    // sending plain text
+    // double value = Random.Shared.NextDouble() * 10;          // random value 0–10 kWh
+    // string text = $"ISK-001;1-0:1.8.0;{DateTime.Now:s};{value:F2}";
+    // byte[] bytes = Encoding.UTF8.GetBytes(text);
+    // await Task.Delay(Random.Shared.Next(0, 5000));            // simulate a slow meter
+    // await stream.WriteAsync(bytes);
+    // Console.WriteLine($"Sent: {text}");
 
-    byte[] bytes = Encoding.UTF8.GetBytes(text);
+    // random value in Wh (whole number, 0–9999) than listener will divide by 1000 to get kWh
+    uint valueWh = (uint)Random.Shared.Next(0, 10000);
 
-    await Task.Delay(Random.Shared.Next(0, 5000)); // send after random delay
-    await stream.WriteAsync(bytes, 0, bytes.Length);  // send the reading to the client
-    Console.WriteLine($"Poslano: {text}");
+    // empty 23-byte packet
+    byte[] packet = new byte[23];
+
+    //start byte
+    packet[0] = 0x7E;
+
+    // bytes 1–4: meter ID (1 = ISK-001)
+    BinaryPrimitives.WriteUInt32BigEndian(packet.AsSpan(1), 1);
+
+    // bytes 5–10: OBIS code 1-0:1.8.0.255
+    packet[5] = 1;
+    packet[6] = 0;
+    packet[7] = 1;
+    packet[8] = 8;
+    packet[9] = 0;
+    packet[10] = 255;
+
+    // bytes 11–18: timestamp (seconds since 1 Jan 1970)
+    long unixTime = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+    BinaryPrimitives.WriteInt64BigEndian(packet.AsSpan(11), unixTime);
+
+    // bytes 19–22: value in Wh
+    BinaryPrimitives.WriteUInt32BigEndian(packet.AsSpan(19), valueWh);
+
+    await Task.Delay(Random.Shared.Next(0, 5000));   // simulate a slow meter
+    await stream.WriteAsync(packet);                 // send the packet
+    Console.WriteLine($"Sent: {Convert.ToHexString(packet)}  ({valueWh} Wh)");
 }
 
 
-// Method to create a reading for a specific meter
-static Reading CreateReading(string meterSerial, double value)
-{
-    return new Reading
-    {
-        MeterSerial = meterSerial,
-        ObisCode = "1-0:1.8.0",
-        Timestamp = DateTime.Now,
-        Value = value
-    };
-}
+// OLD - Method to create a reading for a specific meter
+// static Reading CreateReading(string meterSerial, double value)
+// {
+//     return new Reading
+//     {
+//         MeterSerial = meterSerial,
+//         ObisCode = "1-0:1.8.0",
+//         Timestamp = DateTime.Now,
+//         Value = value
+//     };
+// }
 
 
 // static async Task<double> ReadMeterAsync(string serial, int delayMs)
